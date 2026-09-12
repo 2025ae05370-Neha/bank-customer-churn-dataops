@@ -21,6 +21,7 @@ pull:
 - prefect.deployments.steps.git_clone:
     repository: https://github.com/2025ae05370-Neha/bank-customer-churn-dataops.git
     branch: main
+    access_token: "{{ prefect.blocks.secret.bank-churn-github-token }}"
 
 # the deployments section allows you to provide configuration
 # for deploying flows
