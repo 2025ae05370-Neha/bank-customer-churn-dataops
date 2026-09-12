@@ -117,3 +117,64 @@ clean = preprocess(data)
 print(clean.head())
 ```
 
+## 10. API access (activities 3.1, 3.2, 3.3)
+
+The project now includes a FastAPI service in `api/app.py` that exposes key
+application details over HTTP.
+
+### Run the API
+
+```bash
+python -m api
+```
+
+After startup, open these URLs in the browser or Postman:
+
+- `http://127.0.0.1:8000/docs` - built-in Swagger UI
+- `http://127.0.0.1:8000/health` - API health check
+- `http://127.0.0.1:8000/api/v1/application/details` - combined application summary
+- `http://127.0.0.1:8000/api/v1/flow/details` - flow/deployment/schedule details
+- `http://127.0.0.1:8000/api/v1/dataset/details` - dataset facts
+- `http://127.0.0.1:8000/api/v1/preprocessing/details` - preprocessing summary
+- `http://127.0.0.1:8000/api/v1/model/details` - model accuracy + top features
+- `http://127.0.0.1:8000/api/v1/output/artifacts` - generated charts and CSV files
+
+### Four application details returned by the API
+
+The `application/details` endpoint returns more than the required four details,
+including:
+
+1. Flow name
+2. Deployment name
+3. Schedule interval (every 2 minutes)
+4. Dataset row count
+5. Dataset column count
+6. Churn rate percentage
+7. Task count
+8. Generated artifact count
+
+### Test the API and capture evidence
+
+Use the included test harness to verify successful and unsuccessful responses:
+
+```bash
+python -m api.test_api
+```
+
+This validates:
+
+- HTTP `200 OK` for the implemented endpoints
+- HTTP `404 Not Found` for an invalid endpoint
+- sample JSON request/response payloads for documentation screenshots
+
+### Suggested screenshots for the report
+
+1. Swagger UI at `/docs`
+2. `GET /api/v1/application/details` response in browser/Postman
+3. `GET /api/v1/flow/details` response with flow + deployment details
+4. `GET /api/v1/model/details` response with accuracy and top features
+5. `GET /api/v1/output/artifacts` response showing generated files
+6. `404 Not Found` for `/api/v1/does-not-exist`
+
+ 
+

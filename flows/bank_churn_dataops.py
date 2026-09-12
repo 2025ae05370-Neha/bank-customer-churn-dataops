@@ -24,6 +24,18 @@ from tasks import data_ingestion, data_preprocessing
 from tasks import eda_correlation, eda_feature_engineering
 from tasks import eda_feature_importance, eda_visualization
 
+FLOW_NAME = "bank-customer-churn-dataops"
+DEPLOYMENT_NAME = "bank-customer-churn-local"
+SCHEDULE_INTERVAL_SECONDS = 120
+TASK_SEQUENCE = [
+    "data-ingestion",
+    "data-preprocessing",
+    "eda-correlation",
+    "eda-feature-engineering",
+    "eda-feature-importance",
+    "eda-visualization",
+]
+
 
 @task(name="data-ingestion", retries=1, retry_delay_seconds=5)
 def run_data_ingestion():
@@ -85,7 +97,7 @@ def run_eda_visualization():
     return result
 
 
-@flow(name="bank-customer-churn-dataops", log_prints=True)
+@flow(name=FLOW_NAME, log_prints=True)
 def bank_customer_churn_flow():
     """Execute the full ingestion, preprocessing and EDA pipeline in order."""
     logger = get_run_logger()
@@ -103,6 +115,6 @@ def bank_customer_churn_flow():
 
 if __name__ == "__main__":
     bank_customer_churn_flow.serve(
-        name="bank-customer-churn-local",
-        interval=120,
+        name=DEPLOYMENT_NAME,
+        interval=SCHEDULE_INTERVAL_SECONDS,
     )
