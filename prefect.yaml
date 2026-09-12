@@ -19,7 +19,7 @@ push: null
 # this project in remote locations
 pull:
 - prefect.deployments.steps.git_clone:
-    repository: git@github-bank-churn:2025ae05370-Neha/bank-customer-churn-dataops.git
+  repository: https://github.com/2025ae05370-Neha/bank-customer-churn-dataops.git
     branch: main
 
 # the deployments section allows you to provide configuration
