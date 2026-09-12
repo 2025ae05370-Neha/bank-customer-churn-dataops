@@ -35,7 +35,14 @@ deployments:
   work_pool:
     name: bank-churn-managed-pool
     work_queue_name: null
-    job_variables: {}
+    job_variables:
+      pip_packages:
+      - pandas
+      - numpy
+      - scikit-learn
+      - scipy
+      - matplotlib
+      - seaborn
   schedules:
   - interval: 120.0
     anchor_date: '2026-09-12T09:46:01.806833+00:00'
