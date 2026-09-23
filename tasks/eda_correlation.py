@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 from scipy import stats
+import numpy as np
 
 from tasks.config import (
     BINARY_FEATURES,
@@ -88,6 +89,66 @@ def chi_square_tests(df: pd.DataFrame) -> dict:
         results[column] = {"chi2": chi2, "p_value": p_value, "dof": dof, "conclusion": conclusion}
     return results
 
+def correlation_ratio(categories: pd.Series, measurements: pd.Series) -> float:
+    """
+    Correlation Ratio (eta) between a categorical and a continuous numeric feature.
+    eta = sqrt(SS_between / SS_total), bounded in [0, 1].
+    """
+    cat = categories.astype("category")
+    cat_means = measurements.groupby(cat, observed=False).mean()
+    cat_counts = measurements.groupby(cat, observed=False).count()
+    overall_mean = measurements.mean()
+    
+    ss_total = ((measurements - overall_mean) ** 2).sum()
+    ss_between = (cat_counts * ((cat_means - overall_mean) ** 2)).sum()
+    
+    return float(np.sqrt(ss_between / ss_total)) if ss_total > 0 else 0.0
+
+
+def numeric_categorical_correlations(df: pd.DataFrame) -> dict:
+    """Compute correlation coefficients between continuous numeric and categorical features."""
+    results = {}
+    cat_cols = CATEGORICAL_FEATURES + BINARY_FEATURES
+    
+    for num_col in NUMERIC_FEATURES:
+        results[num_col] = {}
+        for cat_col in cat_cols:
+            eta = correlation_ratio(df[cat_col], df[num_col])
+            results[num_col][cat_col] = round(eta, 4)
+            logger.info("Correlation Ratio eta(%s [Numeric], %s [Categorical]) = %.4f", num_col, cat_col, eta)
+            
+            # Point-Biserial correlation for 2-class binary/categorical columns
+            if df[cat_col].nunique() == 2:
+                mapping = {val: idx for idx, val in enumerate(df[cat_col].unique())}
+                r_pb, p_val = stats.pointbiserialr(df[cat_col].map(mapping), df[num_col])
+                logger.info("  -> Point-Biserial r(%s, %s) = %.4f (p=%.4g)", num_col, cat_col, r_pb, p_val)
+                
+    return results
+
+def save_numeric_categorical_heatmap(df: pd.DataFrame, filename: str = "correlation_heatmap_num_cat.png") -> str:
+    """Compute Correlation Ratio (eta) between numeric and categorical features and save as a heatmap."""
+    cat_cols = CATEGORICAL_FEATURES + BINARY_FEATURES + [TARGET]
+    matrix = pd.DataFrame(index=NUMERIC_FEATURES, columns=cat_cols, dtype=float)
+
+    for num_col in NUMERIC_FEATURES:
+        for cat_col in cat_cols:
+            cat = df[cat_col].astype("category")
+            cat_means = df[num_col].groupby(cat, observed=False).mean()
+            cat_counts = df[num_col].groupby(cat, observed=False).count()
+            overall_mean = df[num_col].mean()
+            ss_total = ((df[num_col] - overall_mean) ** 2).sum()
+            ss_between = (cat_counts * ((cat_means - overall_mean) ** 2)).sum()
+            matrix.loc[num_col, cat_col] = np.sqrt(ss_between / ss_total) if ss_total > 0 else 0.0
+
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(matrix, annot=True, fmt=".2f", cmap="YlGnBu", vmin=0, vmax=1)
+    plt.title("Correlation Ratio (η) Heatmap (Numeric vs Categorical)")
+    plt.tight_layout()
+    path = OUTPUT_DIR / filename
+    plt.savefig(path)
+    plt.close()
+    logger.info("Saved numeric-categorical heatmap to %s", path)
+    return str(path)
 
 def run() -> dict:
     """Entry point used both standalone and by the DataOps flow."""
@@ -96,7 +157,9 @@ def run() -> dict:
     save_heatmap(corr)
     pearson = pearson_pair(df)
     chi_square = chi_square_tests(df)
-    return {"pearson": pearson, "chi_square": chi_square}
+    numeric_cat_corr = numeric_categorical_correlations(df)
+    save_numeric_categorical_heatmap(df)
+    return {"pearson": pearson, "chi_square": chi_square, "numeric_categorical": numeric_cat_corr}
 
 
 if __name__ == "__main__":
