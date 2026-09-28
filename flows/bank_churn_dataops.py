@@ -19,10 +19,12 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from prefect import flow, get_run_logger, task
+from prefect.artifacts import create_markdown_artifact, create_table_artifact
 
 from tasks import data_ingestion, data_preprocessing
 from tasks import eda_correlation, eda_feature_engineering
 from tasks import eda_feature_importance, eda_visualization
+from tasks.config import NUMERIC_FEATURES, TARGET
 
 FLOW_NAME = "bank-customer-churn-dataops"
 DEPLOYMENT_NAME = "bank-customer-churn-local"
@@ -97,18 +99,83 @@ def run_eda_visualization():
     return result
 
 
+def publish_dashboard_artifacts(raw, processed, correlation, importance, visualization):
+    """Publish run outputs to the Prefect Cloud Artifacts tab (activity 1.5)."""
+    rows, cols = raw.shape
+    churn_rate = round(float(raw[TARGET].mean() * 100), 2)
+
+    create_table_artifact(
+        key="dataset-summary",
+        table=[
+            {"metric": "Rows", "value": int(rows)},
+            {"metric": "Columns", "value": int(cols)},
+            {"metric": "Churn rate (%)", "value": churn_rate},
+            {"metric": "Missing values", "value": int(processed.isnull().sum().sum())},
+            {"metric": "Normalized numeric features", "value": len(NUMERIC_FEATURES)},
+        ],
+        description="Dataset and preprocessing summary (activities 1.2, 1.3).",
+    )
+
+    create_table_artifact(
+        key="chi-square-associations",
+        table=[
+            {
+                "feature": feature,
+                "chi2": round(float(result["chi2"]), 3),
+                "p_value": round(float(result["p_value"]), 4),
+                "conclusion": result["conclusion"],
+            }
+            for feature, result in correlation["chi_square"].items()
+        ],
+        description="Chi-square test of each categorical feature vs churn (activity 1.4).",
+    )
+
+    create_table_artifact(
+        key="model-feature-importance",
+        table=[
+            {
+                "model": name,
+                "accuracy": round(float(result["accuracy"]), 4),
+                "top_feature": str(result["top_feature"]),
+            }
+            for name, result in importance.items()
+        ],
+        description="Model accuracy and most important churn driver (activity 1.4).",
+    )
+
+    pearson = correlation["pearson"]
+    chart_list = "\n".join(
+        f"- `{Path(chart).name}`" for chart in visualization["charts"]
+    )
+    create_markdown_artifact(
+        key="run-summary",
+        markdown=(
+            "# Bank Customer Churn - Run Summary\n\n"
+            f"- **Records processed:** {int(rows)} rows x {int(cols)} columns\n"
+            f"- **Churn rate:** {churn_rate}%\n"
+            f"- **Pearson r({pearson['pair'][0]}, {pearson['pair'][1]}):** "
+            f"{round(float(pearson['r']), 4)} ({pearson['interpretation']})\n\n"
+            "## Generated charts\n"
+            f"{chart_list}\n"
+        ),
+        description="High-level summary of the DataOps run (activity 1.5).",
+    )
+
+
 @flow(name=FLOW_NAME, log_prints=True)
 def bank_customer_churn_flow():
     """Execute the full ingestion, preprocessing and EDA pipeline in order."""
     logger = get_run_logger()
     logger.info("Starting Bank Customer Churn DataOps pipeline")
 
-    run_data_ingestion()
-    run_data_preprocessing()
-    run_eda_correlation()
+    raw = run_data_ingestion()
+    processed = run_data_preprocessing()
+    correlation = run_eda_correlation()
     run_eda_feature_engineering()
-    run_eda_feature_importance()
-    run_eda_visualization()
+    importance = run_eda_feature_importance()
+    visualization = run_eda_visualization()
+
+    publish_dashboard_artifacts(raw, processed, correlation, importance, visualization)
 
     logger.info("Bank Customer Churn DataOps pipeline complete")
 
